@@ -58,7 +58,13 @@ if (!fs.existsSync(staticDir)) {
 
 }
 
-app.use('/', express.static(staticDir));
+app.use('/', express.static(staticDir, {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+}));
 
 // simple viewer for logs
 
@@ -86,6 +92,6 @@ app.get('/logs', (req, res) => {
 
 app.get('/health', (req, res) => res.send({ ok: true }));
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
-app.listen(port, () => console.log(`probe server listening on port ${port}`));
+app.listen(port, '0.0.0.0', () => console.log(`probe server listening on port ${port}`));
