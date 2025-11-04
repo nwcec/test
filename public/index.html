@@ -1,0 +1,277 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UE4 Integration - Railway</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .content {
+            padding: 30px;
+        }
+        .control-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        button {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px;
+            border-left: 3px solid transparent;
+        }
+        .success { border-left-color: #2ecc71; color: #2ecc71; }
+        .error { border-left-color: #e74c3c; color: #e74c3c; }
+        .warning { border-left-color: #f39c12; color: #f39c12; }
+        .info { border-left-color: #3498db; color: #3498db; }
+        .results {
+            background: #e8f4fc;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-online { background: #2ecc71; }
+        .status-offline { background: #e74c3c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 UE4 Integration</h1>
+            <p>Running on Railway - Base Address Detection</p>
+        </div>
+        
+        <div class="content">
+            <div class="control-panel">
+                <div class="form-group">
+                    <label for="libraryName">اسم المكتبة:</label>
+                    <input type="text" id="libraryName" value="libUE4.so" placeholder="أدخل اسم المكتبة المطلوبة">
+                </div>
+                
+                <div class="buttons">
+                    <button onclick="getBaseAddress()">الحصول على العنوان الأساسي</button>
+                    <button onclick="checkHealth()">فحص حالة الخادم</button>
+                    <button onclick="getSystemInfo()">معلومات النظام</button>
+                    <button onclick="clearLog()">مسح السجل</button>
+                </div>
+            </div>
+            
+            <h3>📝 سجل الأحداث:</h3>
+            <div id="log" class="log"></div>
+            
+            <div id="results" class="results" style="display: none;">
+                <h3>📊 النتائج:</h3>
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+        const logElement = document.getElementById('log');
+        const resultsElement = document.getElementById('results');
+        const resultsContent = document.getElementById('resultsContent');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="status-indicator status-${type}"></span>[${timestamp}] ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        async function getBaseAddress() {
+            const libraryName = document.getElementById('libraryName').value || 'libUE4.so';
+            
+            log(`🔍 جاري البحث عن المكتبة: ${libraryName}...`, 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/base-address?lib=${encodeURIComponent(libraryName)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(`✅ تم العثور على ${libraryName}: ${data.baseAddress}`, 'success');
+                    
+                    resultsContent.innerHTML = `
+                        <div class="result-item">
+                            <strong>المكتبة:</strong>
+                            <span>${data.library}</span>
+                        </div>
+                        <div class="result-item">
+                            <strong>العنوان الأساسي:</strong>
+                            <span style="font-family: monospace;">${data.baseAddress}</span>
+                        </div>
+                        <div class="result-item">
+                            <strong>القيمة العشرية:</strong>
+                            <span>${data.baseAddressDecimal}</span>
+                        </div>
+                        <div class="result-item">
+                            <strong>البيئة:</strong>
+                            <span>${data.environment}</span>
+                        </div>
+                        <div class="result-item">
+                            <strong>النظام:</strong>
+                            <span>${data.platform}</span>
+                        </div>
+                        <div class="result-item">
+                            <strong>محاكاة:</strong>
+                            <span>${data.simulated ? 'نعم' : 'لا'}</span>
+                        </div>
+                    `;
+                    
+                    resultsElement.style.display = 'block';
+                } else {
+                    log(`❌ ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`💥 خطأ في الاتصال: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkHealth() {
+            log('❤️ فحص حالة الخادم...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                log(`✅ حالة الخادم: ${data.status}`, 'success');
+                log(`⏰ الوقت: ${new Date(data.timestamp).toLocaleString()}`, 'info');
+                log(`🌐 البيئة: ${data.environment}`, 'info');
+                
+            } catch (error) {
+                log(`❌ فشل فحص الحالة: ${error.message}`, 'error');
+            }
+        }
+
+        async function getSystemInfo() {
+            log('🖥️ جاري الحصول على معلومات النظام...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/system-info`);
+                const data = await response.json();
+                
+                log(`✅ النظام: ${data.platform}/${data.arch}`, 'success');
+                log(`🔢 Node.js: ${data.nodeVersion}`, 'info');
+                log(`⚡ Uptime: ${Math.floor(data.uptime)} ثانية`, 'info');
+                log(`🆔 PID: ${data.pid}`, 'info');
+                
+            } catch (error) {
+                log(`❌ فشل الحصول على معلومات النظام: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLog() {
+            logElement.innerHTML = '';
+            resultsElement.style.display = 'none';
+            log('تم مسح السجل', 'info');
+        }
+
+        // فحص تلقائي للحالة عند التحميل
+        window.addEventListener('load', () => {
+            log('🚀 تم تحميل واجهة UE4 Integration', 'success');
+            log(`🌐 الخادم: ${window.location.origin}`, 'info');
+            checkHealth();
+        });
+    </script>
+</body>
+</html>
